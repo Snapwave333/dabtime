@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude sensitive data from backup -->
+    <exclude domain="sharedpref" path="firebase_auth_prefs.xml" />
+    <exclude domain="sharedpref" path="user_credentials.xml" />
+    
+    <!-- Include user preferences -->
+    <include domain="sharedpref" path="user_preferences.xml" />
+    <include domain="sharedpref" path="timer_settings.xml" />
+</full-backup-content>
