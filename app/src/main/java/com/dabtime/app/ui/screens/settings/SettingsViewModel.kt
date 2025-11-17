@@ -53,49 +53,57 @@ class SettingsViewModel @Inject constructor(
     fun toggleHapticFeedback(enabled: Boolean) {
         viewModelScope.launch {
             try {
-                // Update in Firestore
                 _uiState.value = _uiState.value.copy(hapticFeedback = enabled)
+                // Update in Firestore
+                userRepository.updateUserSettings("hapticFeedback", enabled)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
+                    hapticFeedback = !enabled, // Revert on error
                     errorMessage = e.message ?: "Failed to update haptic feedback setting"
                 )
             }
         }
     }
-    
+
     fun toggleSoundEffects(enabled: Boolean) {
         viewModelScope.launch {
             try {
-                // Update in Firestore
                 _uiState.value = _uiState.value.copy(soundEffects = enabled)
+                // Update in Firestore
+                userRepository.updateUserSettings("soundEffects", enabled)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
+                    soundEffects = !enabled, // Revert on error
                     errorMessage = e.message ?: "Failed to update sound effects setting"
                 )
             }
         }
     }
-    
+
     fun toggleFriendNotifications(enabled: Boolean) {
         viewModelScope.launch {
             try {
-                // Update in Firestore
                 _uiState.value = _uiState.value.copy(friendNotifications = enabled)
+                // Update in Firestore
+                userRepository.updateUserSettings("friendNotifications", enabled)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
+                    friendNotifications = !enabled, // Revert on error
                     errorMessage = e.message ?: "Failed to update notification setting"
                 )
             }
         }
     }
-    
+
     fun toggleAutoShareSessions(enabled: Boolean) {
         viewModelScope.launch {
             try {
-                // Update in Firestore
                 _uiState.value = _uiState.value.copy(autoShareSessions = enabled)
+                // Update in Firestore
+                userRepository.updateUserSettings("autoShareSessions", enabled)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
+                    autoShareSessions = !enabled, // Revert on error
                     errorMessage = e.message ?: "Failed to update auto-share setting"
                 )
             }
@@ -113,13 +121,15 @@ class SettingsViewModel @Inject constructor(
     fun setDefaultTimerMode(mode: String) {
         viewModelScope.launch {
             try {
-                // Update in Firestore
                 _uiState.value = _uiState.value.copy(
                     defaultTimerMode = mode,
                     showTimerModeDialog = false
                 )
+                // Update in Firestore
+                userRepository.updateUserSettings("defaultTimerMode", mode)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
+                    showTimerModeDialog = false,
                     errorMessage = e.message ?: "Failed to update timer mode"
                 )
             }
@@ -137,13 +147,15 @@ class SettingsViewModel @Inject constructor(
     fun setTheme(theme: String) {
         viewModelScope.launch {
             try {
-                // Update in Firestore
                 _uiState.value = _uiState.value.copy(
                     theme = theme,
                     showThemeDialog = false
                 )
+                // Update in Firestore
+                userRepository.updateUserSettings("theme", theme)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
+                    showThemeDialog = false,
                     errorMessage = e.message ?: "Failed to update theme"
                 )
             }

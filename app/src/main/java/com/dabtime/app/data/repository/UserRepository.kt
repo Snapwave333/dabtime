@@ -144,21 +144,48 @@ class UserRepository @Inject constructor(
         return try {
             val userDoc = usersCollection.document(userId).get().await()
             val user = userDoc.toObject(User::class.java)
-            
+
             if (user != null && user.friends.isNotEmpty()) {
                 val friendDocs = usersCollection
                     .whereIn("id", user.friends)
                     .get()
                     .await()
-                
+
                 val friends = friendDocs.documents.mapNotNull { doc ->
                     doc.toObject(User::class.java)
                 }
-                
+
                 Result.success(friends)
             } else {
                 Result.success(emptyList())
             }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateUserSettings(key: String, value: Any): Result<Unit> {
+        return try {
+            val currentUser = firebaseAuth.currentUser
+            if (currentUser != null) {
+                val settings = mapOf("settings.$key" to value)
+                usersCollection.document(currentUser.uid)
+                    .update(settings)
+                    .await()
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("No authenticated user"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getUserSettings(userId: String): Result<Map<String, Any>> {
+        return try {
+            val document = usersCollection.document(userId).get().await()
+            val settings = document.get("settings") as? Map<String, Any>
+            Result.success(settings ?: emptyMap())
         } catch (e: Exception) {
             Result.failure(e)
         }

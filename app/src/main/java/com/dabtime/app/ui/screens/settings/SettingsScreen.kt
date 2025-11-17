@@ -1,5 +1,6 @@
 package com.dabtime.app.ui.screens.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -241,6 +242,159 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+    }
+
+    // Theme Dialog
+    if (uiState.showThemeDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.hideThemeDialog() },
+            title = { Text("Choose Theme") },
+            text = {
+                Column {
+                    listOf("Light", "Dark", "Auto").forEach { theme ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.setTheme(theme) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = uiState.theme == theme,
+                                onClick = { viewModel.setTheme(theme) }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(theme)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.hideThemeDialog() }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Timer Mode Dialog
+    if (uiState.showTimerModeDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.hideTimerModeDialog() },
+            title = { Text("Default Timer Mode") },
+            text = {
+                Column {
+                    listOf(
+                        "Strict" to "75 seconds - Intense experience",
+                        "Balanced" to "90 seconds - Optimal timing",
+                        "Chill" to "120 seconds - Relaxed session"
+                    ).forEach { (mode, description) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.setDefaultTimerMode(mode) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = uiState.defaultTimerMode == mode,
+                                onClick = { viewModel.setDefaultTimerMode(mode) }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(mode, fontWeight = FontWeight.Bold)
+                                Text(
+                                    description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.hideTimerModeDialog() }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Delete Account Dialog
+    if (uiState.showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.hideDeleteAccountDialog() },
+            title = { Text("Delete Account") },
+            text = {
+                Text(
+                    "Are you sure you want to delete your account? This action cannot be undone. All your data, including dab sessions, achievements, and friends will be permanently deleted."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.deleteAccount() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ErrorRed
+                    )
+                ) {
+                    Text("Delete Account")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideDeleteAccountDialog() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // About Dialog
+    if (uiState.showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.hideAboutDialog() },
+            title = { Text("About Dab Time") },
+            text = {
+                Column {
+                    Text(
+                        "Version ${uiState.appVersion}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Dab Time is your precision dabbing timer companion. Track your sessions, compete with friends, and master the perfect temperature zones.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Made with precision for the dabbing community",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.hideAboutDialog() }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Error Message Snackbar
+    uiState.errorMessage?.let { error ->
+        LaunchedEffect(error) {
+            kotlinx.coroutines.delay(3000)
+            viewModel.clearError()
+        }
+    }
+
+    // Navigate to auth screen after account deletion
+    LaunchedEffect(uiState.accountDeleted) {
+        if (uiState.accountDeleted) {
+            onSignOut()
         }
     }
 }

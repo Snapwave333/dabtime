@@ -1,5 +1,6 @@
 package com.dabtime.app.ui.screens.timer
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dabtime.app.data.model.HeatZone
@@ -13,15 +14,31 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 
 @HiltViewModel
 class TimerViewModel @Inject constructor(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    
+
+    companion object {
+        private const val KEY_TIME_REMAINING = "timeRemaining"
+        private const val KEY_TOTAL_TIME = "totalTime"
+        private const val KEY_IS_RUNNING = "isRunning"
+        private const val KEY_TIMER_MODE = "timerMode"
+    }
+
     private var timerJob: Job? = null
-    
-    private val _uiState = MutableStateFlow(TimerUiState())
+
+    private val _uiState = MutableStateFlow(
+        TimerUiState(
+            timeRemaining = savedStateHandle.get<Int>(KEY_TIME_REMAINING) ?: 90,
+            totalTime = savedStateHandle.get<Int>(KEY_TOTAL_TIME) ?: 90,
+            isRunning = false, // Never auto-resume on config change
+            timerMode = savedStateHandle.get<TimerMode>(KEY_TIMER_MODE) ?: TimerMode.BALANCED
+        )
+    )
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
     
     fun toggleTimer() {
@@ -38,10 +55,13 @@ class TimerViewModel @Inject constructor(
         _uiState.value = currentState.copy(
             isRunning = false,
             timeRemaining = currentState.totalTime,
-            currentHeatZone = calculateHeatZone(currentState.totalTime, currentState.timerMode)
+            currentHeatZone = calculateHeatZone(currentState.totalTime, currentState.timerMode),
+            errorMessage = null
         )
+        savedStateHandle[KEY_TIME_REMAINING] = currentState.totalTime
+        savedStateHandle[KEY_IS_RUNNING] = false
     }
-    
+
     fun setCustomTime(seconds: Int) {
         val newTime = seconds.coerceAtLeast(1)
         val currentState = _uiState.value
@@ -49,11 +69,15 @@ class TimerViewModel @Inject constructor(
             timeRemaining = newTime,
             totalTime = newTime,
             currentHeatZone = calculateHeatZone(newTime, currentState.timerMode),
-            isRunning = false
+            isRunning = false,
+            errorMessage = null
         )
         timerJob?.cancel()
+        savedStateHandle[KEY_TIME_REMAINING] = newTime
+        savedStateHandle[KEY_TOTAL_TIME] = newTime
+        savedStateHandle[KEY_IS_RUNNING] = false
     }
-    
+
     fun setTimerMode(mode: TimerMode) {
         val currentState = _uiState.value
         val newTotalTime = getDefaultTimeForMode(mode)
@@ -62,41 +86,79 @@ class TimerViewModel @Inject constructor(
             totalTime = newTotalTime,
             timeRemaining = newTotalTime,
             currentHeatZone = calculateHeatZone(newTotalTime, mode),
-            isRunning = false
+            isRunning = false,
+            errorMessage = null
         )
         timerJob?.cancel()
+        savedStateHandle[KEY_TIMER_MODE] = mode
+        savedStateHandle[KEY_TOTAL_TIME] = newTotalTime
+        savedStateHandle[KEY_TIME_REMAINING] = newTotalTime
+        savedStateHandle[KEY_IS_RUNNING] = false
     }
     
     private fun startTimer() {
         _uiState.value = _uiState.value.copy(isRunning = true)
+        savedStateHandle[KEY_IS_RUNNING] = true
+
         timerJob = viewModelScope.launch {
-            while (_uiState.value.isRunning) {
-                delay(1000)
-                val currentState = _uiState.value
-                val newTime = currentState.timeRemaining - 1
-                val newHeatZone = calculateHeatZone(newTime, currentState.timerMode)
-                
-                // Check for heat zone transition for haptic feedback
-                val heatZoneChanged = newHeatZone != currentState.currentHeatZone
-                
-                _uiState.value = currentState.copy(
-                    timeRemaining = newTime,
-                    currentHeatZone = newHeatZone,
-                    heatZoneChanged = heatZoneChanged
-                )
-                
-                // Reset heat zone change flag after a brief moment
-                if (heatZoneChanged) {
-                    delay(100)
-                    _uiState.value = _uiState.value.copy(heatZoneChanged = false)
+            try {
+                val startTime = System.currentTimeMillis()
+                val initialTimeRemaining = _uiState.value.timeRemaining
+
+                while (_uiState.value.isRunning && _uiState.value.timeRemaining > 0) {
+                    delay(100) // Update more frequently for smoother UI
+
+                    val elapsedSeconds = ((System.currentTimeMillis() - startTime) / 1000).toInt()
+                    val currentState = _uiState.value
+                    val newTime = (initialTimeRemaining - elapsedSeconds).coerceAtLeast(0)
+                    val newHeatZone = calculateHeatZone(newTime, currentState.timerMode)
+
+                    // Check for heat zone transition for haptic feedback
+                    val heatZoneChanged = newHeatZone != currentState.currentHeatZone
+
+                    _uiState.value = currentState.copy(
+                        timeRemaining = newTime,
+                        currentHeatZone = newHeatZone,
+                        heatZoneChanged = heatZoneChanged
+                    )
+
+                    // Persist state
+                    savedStateHandle[KEY_TIME_REMAINING] = newTime
+
+                    // Reset heat zone change flag after a brief moment
+                    if (heatZoneChanged) {
+                        delay(100)
+                        _uiState.value = _uiState.value.copy(heatZoneChanged = false)
+                    }
                 }
+
+                // Timer completed
+                if (_uiState.value.timeRemaining <= 0) {
+                    _uiState.value = _uiState.value.copy(isRunning = false)
+                    savedStateHandle[KEY_IS_RUNNING] = false
+                    // TODO: Trigger notification/vibration for completion
+                }
+            } catch (e: CancellationException) {
+                // Timer was cancelled - this is expected behavior
+                throw e
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isRunning = false,
+                    errorMessage = "Timer error: ${e.message}"
+                )
+                savedStateHandle[KEY_IS_RUNNING] = false
             }
         }
     }
     
     private fun pauseTimer() {
         _uiState.value = _uiState.value.copy(isRunning = false)
+        savedStateHandle[KEY_IS_RUNNING] = false
         timerJob?.cancel()
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
     }
     
     private fun calculateHeatZone(timeRemaining: Int, mode: TimerMode): HeatZone {
